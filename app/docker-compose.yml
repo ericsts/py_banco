@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-banco}
+      POSTGRES_USER: ${POSTGRES_USER:-banco}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-banco} -d ${POSTGRES_DB:-banco}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-banco}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-banco}
+      PDF_ROOT: /data/pdf
+      UPLOAD_ROOT: /data/uploads
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env (openssl rand -hex 32)}
+      JWT_EXPIRE_DAYS: ${JWT_EXPIRE_DAYS:-7}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?defina ADMIN_EMAIL no .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
+      RETENTION_DAYS: ${RETENTION_DAYS:-7}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+    volumes:
+      - ${PDF_ROOT_HOST:-../pdf}:/data/pdf:ro
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  uploads:
