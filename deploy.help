@@ -1,0 +1,220 @@
+=============================================================================
+  GUIA DE DEPLOY — py_banco
+  Reaproveita o Droplet, nginx, certbot e usuário "deploy" já criados
+  para o go-icarros. Cobre só o que é novo: nginx, SSL, secrets e deploy.
+=============================================================================
+
+-------------------------------------------------------------------------------
+0. COMO OS BUILDS FUNCIONAM
+-------------------------------------------------------------------------------
+
+Você NÃO precisa instalar Python nem Node no servidor. Tudo acontece dentro
+do Docker via builds multi-estágio, disparados por "docker compose up --build":
+
+  BACKEND (app/backend/Dockerfile):
+    FROM python:3.12-slim  →  pip install -r requirements.txt  →  copia código
+    Roda "alembic upgrade head" e sobe uvicorn (app/backend/start.sh)
+
+  FRONTEND (app/frontend/Dockerfile):
+    Estágio 1  →  FROM node:22-alpine  →  npm install + npm run build
+    Estágio 2  →  FROM nginx:alpine    →  copia o /dist + faz proxy de /api/
+                                           para o container "backend"
+
+O nginx DENTRO do container frontend já resolve /api/ internamente via rede
+Docker (backend:8000) — o nginx do HOST só precisa apontar para a porta
+publicada do container frontend. Mais simples que o go-icarros, que tem dois
+proxies (app e frontend) separados.
+
+-------------------------------------------------------------------------------
+1. PRÉ-REQUISITOS (já prontos, reaproveitados do go-icarros)
+-------------------------------------------------------------------------------
+
+  ✔ Droplet Ubuntu com Docker, nginx e certbot instalados
+  ✔ Usuário "deploy" com sudo + grupo docker
+  ✔ Domínio ericsantos.eu com DNS wildcard (*.ericsantos.eu → IP do Droplet)
+  ✔ Par de chaves SSH dedicado ao GitHub Actions
+    (~/.ssh/github_actions e .pub, já autorizado no Droplet)
+
+Nada disso precisa ser refeito. Só falta configurar o nginx para o novo
+subdomínio, gerar o certificado SSL dele, e criar os secrets no repositório
+NOVO (secrets do GitHub são por repositório, não são compartilhados).
+
+-------------------------------------------------------------------------------
+2. CONFIGURAR NGINX NO DROPLET (novo bloco server)
+-------------------------------------------------------------------------------
+
+Conectado como deploy no Droplet:
+
+  sudo nano /etc/nginx/sites-available/ericsantos.eu
+
+Adicione ao FINAL do arquivo (não mexa nos blocos existentes do icarros):
+
+---
+# ---- banco.ericsantos.eu ----
+server {
+    listen 80;
+    server_name banco.ericsantos.eu;
+
+    client_max_body_size 25m;   # upload de PDFs/extratos
+
+    location / {
+        proxy_pass       http://127.0.0.1:8090;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+---
+
+Porta 8090 escolhida por não colidir com o go-icarros (8080/3000). Se algum
+outro projeto já usa 8090, mude aqui E em FRONTEND_PORT no .env (seção 5).
+
+Ativar e validar:
+
+  sudo nginx -t
+  sudo systemctl reload nginx
+
+-------------------------------------------------------------------------------
+3. SSL PARA O NOVO SUBDOMÍNIO
+-------------------------------------------------------------------------------
+
+  sudo certbot --nginx -d banco.ericsantos.eu
+
+O DNS wildcard já cobre o subdomínio — não precisa mexer no GoDaddy.
+
+-------------------------------------------------------------------------------
+4. SECRETS NO REPOSITÓRIO py_banco (GitHub)
+-------------------------------------------------------------------------------
+
+No GitHub: github.com/ericsts/py_banco → Settings → Secrets and variables
+→ Actions → New repository secret
+
+Crie os três (os valores são OS MESMOS já usados no go-icarros, mas o secret
+precisa ser recriado neste repo — não é compartilhado entre repositórios):
+
+  DROPLET_HOST      → IP do Droplet
+  DROPLET_USER      → deploy
+  DROPLET_SSH_KEY   → conteúdo COMPLETO de ~/.ssh/github_actions (privada),
+                        incluindo as linhas -----BEGIN/END OPENSSH...-----
+
+-------------------------------------------------------------------------------
+5. PRIMEIRO DEPLOY MANUAL (preparar o servidor)
+-------------------------------------------------------------------------------
+
+Feito UMA VEZ, antes do CI/CD assumir. Conectado como deploy no Droplet:
+
+  sudo mkdir -p /opt/py_banco
+  sudo chown deploy:deploy /opt/py_banco
+
+  cd /opt
+  git clone https://github.com/ericsts/py_banco.git
+  cd py_banco/app
+
+  # Criar o .env de produção (NUNCA commitar este arquivo)
+  nano .env
+
+  Cole ajustando as senhas/segredos:
+  ---
+  POSTGRES_DB=banco
+  POSTGRES_USER=banco
+  POSTGRES_PASSWORD=SENHA_FORTE_AQUI
+
+  FRONTEND_PORT=8090
+
+  # Gere com: openssl rand -hex 32
+  SECRET_KEY=SEGREDO_FORTE_AQUI
+
+  JWT_EXPIRE_DAYS=7
+
+  ADMIN_EMAIL=seu@email.com
+  ADMIN_PASSWORD=SENHA_FORTE_AQUI
+
+  RETENTION_DAYS=7
+  FRONTEND_ORIGIN=https://banco.ericsantos.eu
+  ---
+
+  # Primeiro build e subida dos containers
+  docker compose -f docker-compose.prod.yml up --build -d
+
+  # Verificar se está tudo rodando
+  docker compose -f docker-compose.prod.yml ps
+
+Abra https://banco.ericsantos.eu e confirme que a tela de login aparece.
+
+NOTA sobre os PDFs antigos (pasta files/eric, files/nick no seu ambiente
+local): eles são ignorados pelo git de propósito (dados financeiros
+sensíveis) e o docker-compose.prod.yml NÃO monta esse volume — o app agora
+suporta upload multiusuário pela própria interface. Se quiser popular o
+histórico no servidor mesmo assim, envie os arquivos manualmente com rsync/
+scp para dentro do container ou pelo próprio formulário de upload; não é
+um passo obrigatório para o deploy funcionar.
+
+-------------------------------------------------------------------------------
+6. COMO O CI/CD FUNCIONA (deploy automático)
+-------------------------------------------------------------------------------
+
+O arquivo .github/workflows/deploy.yml já está no repositório. A cada push
+na branch main, o GitHub Actions:
+
+  1. Conecta no Droplet via SSH usando os secrets configurados
+  2. cd /opt/py_banco && git pull origin main
+  3. cd app && docker compose -f docker-compose.prod.yml up --build -d
+  4. docker image prune -f
+
+Acompanhar em: GitHub → repositório → Actions → último workflow.
+
+-------------------------------------------------------------------------------
+7. COMANDOS ÚTEIS NO DROPLET
+-------------------------------------------------------------------------------
+
+  cd /opt/py_banco/app
+
+  # Status dos containers
+  docker compose -f docker-compose.prod.yml ps
+
+  # Logs do backend / frontend / banco
+  docker compose -f docker-compose.prod.yml logs -f backend
+  docker compose -f docker-compose.prod.yml logs -f frontend
+  docker compose -f docker-compose.prod.yml logs -f db
+
+  # Reiniciar sem rebuild
+  docker compose -f docker-compose.prod.yml restart backend
+
+  # Forçar rebuild
+  docker compose -f docker-compose.prod.yml up --build -d
+
+  # Parar tudo (mantém dados)
+  docker compose -f docker-compose.prod.yml down
+
+  # Parar e APAGAR volumes (banco + uploads) — cuidado!
+  docker compose -f docker-compose.prod.yml down -v
+
+  # Rodar migration manualmente (normalmente já roda no start.sh)
+  docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
+
+-------------------------------------------------------------------------------
+8. TROUBLESHOOTING
+-------------------------------------------------------------------------------
+
+PROBLEMA: 502 Bad Gateway em banco.ericsantos.eu
+  → docker compose -f docker-compose.prod.yml ps  (container frontend caiu?)
+  → docker compose -f docker-compose.prod.yml logs frontend
+
+PROBLEMA: backend não sobe / erro de conexão com banco
+  → docker compose -f docker-compose.prod.yml logs backend
+  → confirme que .env existe em /opt/py_banco/app e tem SECRET_KEY,
+    ADMIN_EMAIL, ADMIN_PASSWORD, POSTGRES_* preenchidos
+
+PROBLEMA: deploy.yml falha com "Permission denied" no SSH
+  → confirme que os 3 secrets foram criados NESTE repositório (py_banco),
+    não só no go-icarros
+  → teste local: ssh -i ~/.ssh/github_actions deploy@SEU_IP
+
+PROBLEMA: certificado SSL não aplica
+  → sudo certbot --nginx -d banco.ericsantos.eu
+  → sudo nginx -t && sudo systemctl reload nginx
+
+-------------------------------------------------------------------------------
+FIM DO GUIA
+-------------------------------------------------------------------------------
