@@ -21,7 +21,6 @@ jobs:
             cd /opt/py_banco
             git pull origin main
 
-            cd app
             docker compose -f docker-compose.prod.yml up --build -d
             docker image prune -f
 

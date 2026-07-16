@@ -10,10 +10,11 @@ se preocupar com o backend.
 ## 1. Copiar o projeto para o droplet
 
 ```
-scp -r app/ usuario@seu-droplet:/caminho/dos/seus/projetos/banco-app
+scp -r . usuario@seu-droplet:/caminho/dos/seus/projetos/banco-app
 ```
 
-Ou clonar via git se você colocar isso num repositório.
+Ou clonar via git (é o que o [deploy.help](deploy.help) na raiz do repositório
+faz via GitHub Actions).
 
 ## 2. Configurar o `.env`
 

@@ -11,11 +11,11 @@
 Você NÃO precisa instalar Python nem Node no servidor. Tudo acontece dentro
 do Docker via builds multi-estágio, disparados por "docker compose up --build":
 
-  BACKEND (app/backend/Dockerfile):
+  BACKEND (backend/Dockerfile):
     FROM python:3.12-slim  →  pip install -r requirements.txt  →  copia código
-    Roda "alembic upgrade head" e sobe uvicorn (app/backend/start.sh)
+    Roda "alembic upgrade head" e sobe uvicorn (backend/start.sh)
 
-  FRONTEND (app/frontend/Dockerfile):
+  FRONTEND (frontend/Dockerfile):
     Estágio 1  →  FROM node:22-alpine  →  npm install + npm run build
     Estágio 2  →  FROM nginx:alpine    →  copia o /dist + faz proxy de /api/
                                            para o container "backend"
@@ -110,7 +110,7 @@ Feito UMA VEZ, antes do CI/CD assumir. Conectado como deploy no Droplet:
 
   cd /opt
   git clone https://github.com/ericsts/py_banco.git
-  cd py_banco/app
+  cd py_banco
 
   # Criar o .env de produção (NUNCA commitar este arquivo)
   nano .env
@@ -160,7 +160,7 @@ na branch main, o GitHub Actions:
 
   1. Conecta no Droplet via SSH usando os secrets configurados
   2. cd /opt/py_banco && git pull origin main
-  3. cd app && docker compose -f docker-compose.prod.yml up --build -d
+  3. docker compose -f docker-compose.prod.yml up --build -d
   4. docker image prune -f
 
 Acompanhar em: GitHub → repositório → Actions → último workflow.
@@ -169,7 +169,7 @@ Acompanhar em: GitHub → repositório → Actions → último workflow.
 7. COMANDOS ÚTEIS NO DROPLET
 -------------------------------------------------------------------------------
 
-  cd /opt/py_banco/app
+  cd /opt/py_banco
 
   # Status dos containers
   docker compose -f docker-compose.prod.yml ps
@@ -204,7 +204,7 @@ PROBLEMA: 502 Bad Gateway em banco.ericsantos.eu
 
 PROBLEMA: backend não sobe / erro de conexão com banco
   → docker compose -f docker-compose.prod.yml logs backend
-  → confirme que .env existe em /opt/py_banco/app e tem SECRET_KEY,
+  → confirme que .env existe em /opt/py_banco e tem SECRET_KEY,
     ADMIN_EMAIL, ADMIN_PASSWORD, POSTGRES_* preenchidos
 
 PROBLEMA: deploy.yml falha com "Permission denied" no SSH
