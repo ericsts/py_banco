@@ -40,17 +40,17 @@ subdomínio, gerar o certificado SSL dele, e criar os secrets no repositório
 NOVO (secrets do GitHub são por repositório, não são compartilhados).
 
 -------------------------------------------------------------------------------
-2. CONFIGURAR NGINX NO DROPLET (novo bloco server)
+2. CONFIGURAR NGINX NO DROPLET (arquivo dedicado ao projeto)
 -------------------------------------------------------------------------------
 
-Conectado como deploy no Droplet:
+Cada projeto tem seu próprio arquivo em sites-available (não um arquivo
+único compartilhado). Conectado como deploy no Droplet:
 
-  sudo nano /etc/nginx/sites-available/ericsantos.eu
+  sudo nano /etc/nginx/sites-available/banco.ericsantos.eu
 
-Adicione ao FINAL do arquivo (não mexa nos blocos existentes do icarros):
+Cole (sem SSL ainda — o certbot adiciona o bloco 443 na seção 3):
 
 ---
-# ---- banco.ericsantos.eu ----
 server {
     listen 80;
     server_name banco.ericsantos.eu;
@@ -70,8 +70,9 @@ server {
 Porta 8090 escolhida por não colidir com o go-icarros (8080/3000). Se algum
 outro projeto já usa 8090, mude aqui E em FRONTEND_PORT no .env (seção 5).
 
-Ativar e validar:
+Criar o link simbólico para ativar o site, validar e recarregar:
 
+  sudo ln -s /etc/nginx/sites-available/banco.ericsantos.eu /etc/nginx/sites-enabled/
   sudo nginx -t
   sudo systemctl reload nginx
 
