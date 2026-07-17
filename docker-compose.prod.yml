@@ -26,7 +26,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:?defina ADMIN_EMAIL no .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
       RETENTION_DAYS: ${RETENTION_DAYS:-7}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?defina FRONTEND_ORIGIN no .env (ex.: https://banco.ericsantos.eu)}
+      FRONTEND_ORIGIN: "${FRONTEND_ORIGIN:?defina FRONTEND_ORIGIN no .env, ex. https://banco.ericsantos.eu}"
     volumes:
       - uploads:/data/uploads
     depends_on:
