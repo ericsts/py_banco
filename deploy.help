@@ -159,7 +159,9 @@ O arquivo .github/workflows/deploy.yml já está no repositório. A cada push
 na branch main, o GitHub Actions:
 
   1. Conecta no Droplet via SSH usando os secrets configurados
-  2. cd /opt/py_banco && git pull origin main
+  2. cd /opt/py_banco && git fetch origin main && git reset --hard origin/main
+     (reset --hard, não pull — o diretório de deploy sempre espelha o
+     origin/main exatamente, mesmo que o histórico seja reescrito no futuro)
   3. docker compose -f docker-compose.prod.yml up --build -d
   4. docker image prune -f
 

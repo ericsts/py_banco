@@ -19,7 +19,8 @@ jobs:
           script: |
             set -e
             cd /opt/py_banco
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             docker compose -f docker-compose.prod.yml up --build -d
             docker image prune -f
