@@ -11,6 +11,7 @@ from sqlalchemy import (
     Numeric,
     ForeignKey,
     Enum,
+    Text,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -50,6 +51,11 @@ class UserStatus(str, enum.Enum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
+
+
+class ChatRole(str, enum.Enum):
+    user = "user"
+    assistant = "assistant"
 
 
 class User(Base):
@@ -122,3 +128,15 @@ class Transaction(Base):
     excluido_motivo: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     source_file: Mapped[SourceFile] = relationship(back_populates="transactions")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[ChatRole] = mapped_column(Enum(ChatRole, name="chat_role"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now())

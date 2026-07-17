@@ -27,6 +27,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
       RETENTION_DAYS: ${RETENTION_DAYS:-7}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - ${PDF_ROOT_HOST:-../pdf}:/data/pdf:ro
       - uploads:/data/uploads

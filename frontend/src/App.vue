@@ -11,6 +11,7 @@ const links = computed(() => {
     { to: "/arquivos", label: "Arquivos" },
     { to: "/lancamentos", label: "Lançamentos" },
     { to: "/resumo", label: "Resumo" },
+    { to: "/assistente", label: "Assistente" },
   ];
   if (authStore.state.user?.role === "admin") {
     base.push({ to: "/admin/usuarios", label: "Usuários" }, { to: "/admin/quarentena", label: "Quarentena" });

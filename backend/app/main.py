@@ -4,7 +4,7 @@ import contextlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import admin, auth, files, summary, transactions
+from .api import admin, assistant, auth, files, summary, transactions
 from .auth import bootstrap_admin
 from .config import settings
 from .db import SessionLocal
@@ -41,6 +41,7 @@ app.include_router(admin.router)
 app.include_router(files.router)
 app.include_router(transactions.router)
 app.include_router(summary.router)
+app.include_router(assistant.router)
 
 
 @app.get("/api/health")

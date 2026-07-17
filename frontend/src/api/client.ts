@@ -80,6 +80,20 @@ export interface QuarantineEntry {
   pdf_disponivel: boolean;
 }
 
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface StreamHandlers {
+  onStatus?: (message: string) => void;
+  onDelta?: (text: string) => void;
+  onDone?: () => void;
+  onError?: (message: string, retryable: boolean) => void;
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: "include", ...init });
   if (!res.ok) {
@@ -98,6 +112,45 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 function postJson<T>(path: string, body: unknown): Promise<T> {
   return req<T>(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
+// Streaming via SSE não cabe no helper `req<T>()` acima (que sempre espera JSON) —
+// EventSource também não serve, pois precisa enviar um corpo POST em JSON.
+export async function streamAssistantMessage(message: string, handlers: StreamHandlers): Promise<void> {
+  const res = await fetch("/api/assistant/messages", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok || !res.body) {
+    handlers.onError?.(`Erro ${res.status} ao contactar o assistente.`, true);
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+    for (const chunk of chunks) {
+      let event = "message";
+      let data = "";
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (!data) continue;
+      const payload = JSON.parse(data);
+      if (event === "status") handlers.onStatus?.(payload.message);
+      else if (event === "delta") handlers.onDelta?.(payload.text);
+      else if (event === "error") handlers.onError?.(payload.message, payload.retryable);
+      else if (event === "done") handlers.onDone?.();
+    }
+  }
 }
 
 export const api = {
@@ -138,4 +191,8 @@ export const api = {
   adminListQuarantine: () => req<QuarantineEntry[]>("/api/admin/quarentena"),
   adminPreviewQuarantine: (id: string) => req<{ filename: string; texto: string }>(`/api/admin/quarentena/${id}/preview`),
   adminReprocessQuarantine: () => postJson<{ analisados: number; resolvidos: number }>("/api/admin/quarentena/reprocessar", {}),
+
+  // assistant
+  listChatMessages: () => req<ChatMessage[]>("/api/assistant/messages"),
+  clearChat: () => req("/api/assistant/messages", { method: "DELETE" }),
 };

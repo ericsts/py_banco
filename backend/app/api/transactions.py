@@ -4,38 +4,11 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..auth import require_approved_user
 from ..db import get_db
-from ..models import SourceFile, Transaction, User, UserRole
+from ..models import SourceFile, Transaction, User
 from ..schemas import TransactionOut, TransactionPage
+from ..services.tx_query import apply_filters as _apply_filters
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
-
-
-def _apply_filters(
-    query,
-    user: User,
-    todos: bool,
-    ano_mes: str | None,
-    fonte: str | None,
-    grupo: str | None,
-    tipo: str | None,
-    q: str | None,
-    incluir_excluidos: bool,
-):
-    if not (todos and user.role == UserRole.admin):
-        query = query.filter(Transaction.user_id == user.id)
-    if ano_mes:
-        query = query.filter(Transaction.ano_mes == ano_mes)
-    if fonte:
-        query = query.filter(Transaction.fonte == fonte)
-    if grupo:
-        query = query.filter(Transaction.grupo == grupo)
-    if tipo:
-        query = query.filter(Transaction.tipo == tipo)
-    if q:
-        query = query.filter(Transaction.descricao_original.ilike(f"%{q}%"))
-    if not incluir_excluidos:
-        query = query.filter(Transaction.excluido.is_(False))
-    return query
 
 
 @router.get("", response_model=TransactionPage)

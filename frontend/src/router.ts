@@ -5,6 +5,7 @@ import PendingView from "./views/PendingView.vue";
 import FilesView from "./views/FilesView.vue";
 import TransactionsView from "./views/TransactionsView.vue";
 import SummaryView from "./views/SummaryView.vue";
+import AssistantView from "./views/AssistantView.vue";
 import AdminUsersView from "./views/AdminUsersView.vue";
 import AdminQuarantineView from "./views/AdminQuarantineView.vue";
 import { authStore } from "./stores/auth";
@@ -19,6 +20,7 @@ const router = createRouter({
     { path: "/arquivos", name: "arquivos", component: FilesView, meta: { requiresApproved: true } },
     { path: "/lancamentos", name: "lancamentos", component: TransactionsView, meta: { requiresApproved: true } },
     { path: "/resumo", name: "resumo", component: SummaryView, meta: { requiresApproved: true } },
+    { path: "/assistente", name: "assistente", component: AssistantView, meta: { requiresApproved: true } },
     { path: "/admin/usuarios", name: "admin-usuarios", component: AdminUsersView, meta: { requiresAdmin: true } },
     { path: "/admin/quarentena", name: "admin-quarentena", component: AdminQuarantineView, meta: { requiresAdmin: true } },
   ],

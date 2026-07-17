@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     retention_days: int = 7
     frontend_origin: str = "http://localhost:5173"
 
+    anthropic_api_key: str = ""
+
     class Config:
         env_prefix = ""
         case_sensitive = False
