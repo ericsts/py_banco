@@ -1,4 +1,4 @@
-# py_banco
+# py_banco.
 
 Gestão de extratos bancários: upload de PDFs de extrato/cartão, extração
 automática dos lançamentos e um painel para acompanhar gastos por mês e
