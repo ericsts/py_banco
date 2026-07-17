@@ -1,5 +1,6 @@
 files/
 .env
+deploy.help
 
 # Python
 __pycache__/
