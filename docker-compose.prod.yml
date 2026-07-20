@@ -1,24 +1,14 @@
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
+  # db foi removido — este projeto agora usa o Postgres compartilhado
+  # definido em ericsantos.eu/infra/docker-compose.yml (container
+  # infra_postgres, rede infra_shared). POSTGRES_USER/POSTGRES_DB devem ser
+  # "banco" (role já criado lá) e POSTGRES_PASSWORD igual a
+  # BANCO_DB_PASSWORD no infra/.env — veja infra/README.md.
   backend:
     build: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@infra_postgres:5432/${POSTGRES_DB}
       PDF_ROOT: /data/pdf
       UPLOAD_ROOT: /data/uploads
       SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env (openssl rand -hex 32)}
@@ -30,9 +20,9 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - uploads:/data/uploads
-    depends_on:
-      db:
-        condition: service_healthy
+    networks:
+      - default
+      - infra_shared
 
   frontend:
     build:
@@ -43,6 +33,9 @@ services:
     depends_on:
       - backend
 
+networks:
+  infra_shared:
+    external: true
+
 volumes:
-  pgdata:
   uploads:
